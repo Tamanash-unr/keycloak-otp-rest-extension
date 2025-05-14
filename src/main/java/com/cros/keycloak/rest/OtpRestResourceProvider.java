@@ -143,15 +143,14 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     }
     
     private void removeOtpCredentials(UserModel user, RealmModel realm) {
-        // Get OTP credential provider
-        OTPCredentialProvider otpCredentialProvider = (OTPCredentialProvider) session.getProvider(
-                CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
-        
-        // Fixed: Use the correct credential type constant
-        otpCredentialProvider.disableCredentialType(realm, user, OTPCredentialModel.TYPE);
+        // Get all credentials of OTP type and remove them
+        // user.credentialManager()
+        //     .getStoredCredentialsByTypeStream(OTPCredentialModel.TYPE)
+        //     .forEach(credential -> 
+        //         user.credentialManager().removeStoredCredential(credential.getId()));
         
         // Remove required action
-        user.removeRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
+        // user.removeRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
     }
     
     private String generateOtpAuthUrl(RealmModel realm, UserModel user, String totpSecret) {
