@@ -8,6 +8,7 @@ import org.keycloak.credential.OTPCredentialProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.credential.OTPCredentialModel;
 import org.keycloak.models.utils.HmacOTP;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
@@ -129,12 +130,14 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         OTPCredentialProvider otpCredentialProvider = (OTPCredentialProvider) session.getProvider(
                 CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
         
-        // Create OTP credential model
-        CredentialModel credentialModel = otpCredentialProvider.createCredential(
-                realm, user, totpSecret);
+        // Create OTP credential model - Fixed: Use proper OTPCredentialModel creation
+        OTPCredentialModel credentialModel = OTPCredentialModel.createFromPolicy(realm, totpSecret);
+        otpCredentialProvider.createCredential(realm, user, credentialModel);
         
         // Set required action if user doesn't have OTP configured
-        if (!user.getRequiredActions().contains(UserModel.RequiredAction.CONFIGURE_TOTP.name())) {
+        // Fixed: Use UserModel's addRequiredAction directly instead of checking getRequiredActions
+        if (!user.getRequiredActionsStream().anyMatch(action -> 
+                action.equals(UserModel.RequiredAction.CONFIGURE_TOTP.name()))) {
             user.addRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
         }
     }
@@ -144,8 +147,8 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         OTPCredentialProvider otpCredentialProvider = (OTPCredentialProvider) session.getProvider(
                 CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
         
-        // Remove OTP credentials
-        otpCredentialProvider.disableCredentialType(realm, user, OTPCredentialProviderFactory.CREDENTIAL_TYPE);
+        // Fixed: Use the correct credential type constant
+        otpCredentialProvider.disableCredentialType(realm, user, OTPCredentialModel.TYPE);
         
         // Remove required action
         user.removeRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
