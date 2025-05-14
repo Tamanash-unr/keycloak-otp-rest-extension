@@ -1,6 +1,6 @@
 # Keycloak OTP REST Endpoint
 
-This Keycloak extension provides REST endpoints for OTP (One-Time Password) authentication management.
+This Keycloak extension provides REST endpoints for OTP (One-Time Password) authentication management, compatible with Keycloak 26.1.3.
 
 ## Features
 
