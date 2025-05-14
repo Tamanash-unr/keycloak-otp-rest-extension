@@ -1,12 +1,13 @@
-# Keycloak OTP REST Endpoint
+# Keycloak OTP Admin API Extension
 
-This Keycloak extension provides REST endpoints for OTP (One-Time Password) authentication management, compatible with Keycloak 26.1.3.
+This Keycloak extension provides Admin REST API endpoints for OTP (One-Time Password) authentication management, compatible with Keycloak 26.1.3.
 
 ## Features
 
 - Generate TOTP (Time-based One-Time Password) secrets and authentication URLs
 - Set up OTP for users
 - Remove OTP configuration from users
+- Properly integrated with Keycloak's Admin REST API and permission system
 
 ## Installation
 
@@ -15,26 +16,27 @@ This Keycloak extension provides REST endpoints for OTP (One-Time Password) auth
    mvn clean package
    ```
 
-2. Copy the JAR file from `target/keycloak-otp-rest-endpoint.jar` to Keycloak's `standalone/deployments` directory.
+2. Copy the JAR file from `target/keycloak-otp-admin-extension.jar` to Keycloak's `providers` directory.
 
 3. Restart Keycloak.
 
-## REST Endpoints
+## Admin REST API Endpoints
 
-All endpoints require a valid bearer token for authentication.
+All endpoints require admin authentication with proper permissions.
 
 ### Generate OTP Configuration
 
 ```
-GET /realms/{realm}/otp/generate-otp
+GET /admin/realms/{realm}/otp/generate/{userId}
 ```
 
-Generates a new OTP secret, configures it for the authenticated user, and returns the OTP authentication URL.
+Generates a new OTP secret, configures it for the specified user, and returns the OTP authentication URL.
 
 **Response:**
 ```json
 {
   "userId": "user-uuid",
+  "username": "username",
   "otpAuthUrl": "otpauth://totp/RealmName:username?secret=ABCDEFGHIJKLMNOP&issuer=RealmName",
   "totpSecret": "ABCDEFGHIJKLMNOP"
 }
@@ -43,7 +45,7 @@ Generates a new OTP secret, configures it for the authenticated user, and return
 ### Setup OTP for User
 
 ```
-POST /realms/{realm}/otp/setup-otp
+POST /admin/realms/{realm}/otp/setup/{userId}
 ```
 
 **Request Body:**
@@ -57,6 +59,7 @@ POST /realms/{realm}/otp/setup-otp
 ```json
 {
   "userId": "user-uuid",
+  "username": "username",
   "status": "OTP configured successfully"
 }
 ```
@@ -64,15 +67,16 @@ POST /realms/{realm}/otp/setup-otp
 ### Remove OTP Configuration
 
 ```
-DELETE /realms/{realm}/otp/remove-otp
+DELETE /admin/realms/{realm}/otp/remove/{userId}
 ```
 
-Removes OTP configuration for the authenticated user.
+Removes OTP configuration for the specified user.
 
 **Response:**
 ```json
 {
   "userId": "user-uuid",
+  "username": "username",
   "status": "OTP removed successfully"
 }
 ```
@@ -82,11 +86,11 @@ Removes OTP configuration for the authenticated user.
 ### Generate OTP and Display QR Code
 
 ```javascript
-// Get access token first
-fetch('https://keycloak.example.com/realms/myrealm/otp/generate-otp', {
+// Get admin access token first
+fetch('https://keycloak.example.com/admin/realms/myrealm/otp/generate/user-uuid-here', {
   method: 'GET',
   headers: {
-    'Authorization': 'Bearer ' + accessToken
+    'Authorization': 'Bearer ' + adminAccessToken
   }
 })
 .then(response => response.json())
@@ -97,6 +101,14 @@ fetch('https://keycloak.example.com/realms/myrealm/otp/generate-otp', {
 })
 .catch(error => console.error('Error:', error));
 ```
+
+## Required Permissions
+
+To use these endpoints, admin users need:
+- `view-users` permission to view user information
+- `manage-users` permission to manage user OTP settings
+
+These permissions are already included in the `realm-admin` role, but can be customized for more granular control.
 
 ## Integration with Login Flow
 

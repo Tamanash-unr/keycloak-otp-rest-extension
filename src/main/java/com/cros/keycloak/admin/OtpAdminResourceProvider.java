@@ -1,4 +1,4 @@
-package com.cros.keycloak.rest;
+package com.cros.keycloak.admin;
 
 import org.jboss.logging.Logger;
 import org.keycloak.credential.CredentialProvider;
@@ -9,54 +9,44 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.OTPCredentialModel;
 import org.keycloak.models.utils.HmacOTP;
-import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resources.admin.AdminAuth;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
 import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.Map;
 
-public class OtpRestResourceProvider implements RealmResourceProvider {
+/**
+ * Admin REST resource provider for OTP management
+ */
+public class OtpAdminResourceProvider {
 
-    private static final Logger LOG = Logger.getLogger(OtpRestResourceProvider.class);
+    private static final Logger LOG = Logger.getLogger(OtpAdminResourceProvider.class);
     private final KeycloakSession session;
+    private final AdminAuth auth;
+    private final AdminPermissionEvaluator permissions;
 
-    public OtpRestResourceProvider(KeycloakSession session) {
+    public OtpAdminResourceProvider(KeycloakSession session) {
         this.session = session;
-    }
-
-    @Override
-    public Object getResource() {
-        return this;
-    }
-
-    @Override
-    public void close() {
-        // Nothing to close
-    }
-    
-    // Helper method to check admin permissions
-    private AdminPermissionEvaluator auth() {
-        AdminAuth adminAuth = session.getContext().getRequestAuthenticationManager().authenticateIdentity();
-        if (adminAuth == null) {
+        this.auth = session.getContext().getRequestAuthenticationManager().authenticateIdentity();
+        if (auth == null) {
             throw new NotAuthorizedException("Bearer");
         }
-        return AdminPermissions.evaluator(session, session.getContext().getRealm(), adminAuth);
+        this.permissions = AdminPermissions.evaluator(session, session.getContext().getRealm(), auth);
     }
 
     @GET
-    @Path("generate-otp/{userId}")
+    @Path("generate/{userId}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response generateOtp(@PathParam("userId") String userId) {
-        AdminPermissionEvaluator auth = auth();
         RealmModel realm = session.getContext().getRealm();
         
-        // Check if admin has permission to view users
-        auth.users().requireView();
+        // Check if admin has permission to view and manage users
+        permissions.users().requireView();
         
         // Get user by ID
         UserModel user = session.users().getUserById(realm, userId);
@@ -67,7 +57,7 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
         
         // Check if admin has permission to manage this user
-        auth.users().requireManage(user);
+        permissions.users().requireManage(user);
         
         // Generate OTP secret
         String totpSecret = generateTotpSecret();
@@ -80,6 +70,7 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         
         Map<String, String> result = new HashMap<>();
         result.put("userId", user.getId());
+        result.put("username", user.getUsername());
         result.put("otpAuthUrl", otpAuthUrl);
         result.put("totpSecret", totpSecret);
         
@@ -87,15 +78,14 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     }
     
     @POST
-    @Path("setup-otp/{userId}")
+    @Path("setup/{userId}")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public Response setupOtp(@PathParam("userId") String userId, Map<String, String> data) {
-        AdminPermissionEvaluator auth = auth();
         RealmModel realm = session.getContext().getRealm();
         
-        // Check if admin has permission to view users
-        auth.users().requireView();
+        // Check if admin has permission to view and manage users
+        permissions.users().requireView();
         
         // Get user by ID
         UserModel user = session.users().getUserById(realm, userId);
@@ -106,7 +96,7 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
         
         // Check if admin has permission to manage this user
-        auth.users().requireManage(user);
+        permissions.users().requireManage(user);
         
         // Get provided OTP secret or generate one if not provided
         String totpSecret = data.containsKey("totpSecret") ? 
@@ -117,20 +107,20 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         
         Map<String, String> result = new HashMap<>();
         result.put("userId", user.getId());
+        result.put("username", user.getUsername());
         result.put("status", "OTP configured successfully");
         
         return Response.ok(result).build();
     }
     
     @DELETE
-    @Path("remove-otp/{userId}")
+    @Path("remove/{userId}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response removeOtp(@PathParam("userId") String userId) {
-        AdminPermissionEvaluator auth = auth();
         RealmModel realm = session.getContext().getRealm();
         
-        // Check if admin has permission to view users
-        auth.users().requireView();
+        // Check if admin has permission to view and manage users
+        permissions.users().requireView();
         
         // Get user by ID
         UserModel user = session.users().getUserById(realm, userId);
@@ -141,13 +131,14 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
         
         // Check if admin has permission to manage this user
-        auth.users().requireManage(user);
+        permissions.users().requireManage(user);
         
         // Remove OTP credentials
         removeOtpCredentials(user, realm);
         
         Map<String, String> result = new HashMap<>();
         result.put("userId", user.getId());
+        result.put("username", user.getUsername());
         result.put("status", "OTP removed successfully");
         
         return Response.ok(result).build();
