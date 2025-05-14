@@ -6,6 +6,9 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
+/**
+ * Factory for the OTP REST resource provider
+ */
 public class OtpRestResourceProviderFactory implements RealmResourceProviderFactory {
 
     public static final String ID = "otp";

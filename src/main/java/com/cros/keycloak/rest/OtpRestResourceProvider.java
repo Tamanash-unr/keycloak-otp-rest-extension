@@ -4,6 +4,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.credential.CredentialModel;
 import org.keycloak.credential.CredentialProvider;
 import org.keycloak.credential.OTPCredentialProvider;
+import org.keycloak.credential.OTPCredentialProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
@@ -17,6 +18,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class OtpRestResourceProvider implements RealmResourceProvider {
 
@@ -48,13 +50,13 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
 
         UserModel user = auth.getUser();
-        RealmModel realm = auth.getRealm();
-
+        RealmModel realm = session.getContext().getRealm(); // Get realm from session context
+        
         // Generate OTP secret
         String totpSecret = generateTotpSecret();
         
         // Store OTP configuration for user
-        configureOtpForUser(user, totpSecret);
+        configureOtpForUser(user, totpSecret, realm);
         
         // Generate OTP auth URL
         String otpAuthUrl = generateOtpAuthUrl(realm, user, totpSecret);
@@ -77,13 +79,14 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
         
         UserModel user = auth.getUser();
+        RealmModel realm = session.getContext().getRealm();
         
         // Get provided OTP secret or generate one if not provided
         String totpSecret = data.containsKey("totpSecret") ? 
                 data.get("totpSecret") : generateTotpSecret();
         
         // Configure OTP for user
-        configureOtpForUser(user, totpSecret);
+        configureOtpForUser(user, totpSecret, realm);
         
         Map<String, String> result = new HashMap<>();
         result.put("userId", user.getId());
@@ -101,9 +104,10 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
         
         UserModel user = auth.getUser();
+        RealmModel realm = session.getContext().getRealm();
         
         // Remove OTP credentials
-        removeOtpCredentials(user);
+        removeOtpCredentials(user, realm);
         
         Map<String, String> result = new HashMap<>();
         result.put("userId", user.getId());
@@ -117,17 +121,17 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         return HmacOTP.generateSecret(20);
     }
     
-    private void configureOtpForUser(UserModel user, String totpSecret) {
+    private void configureOtpForUser(UserModel user, String totpSecret, RealmModel realm) {
         // Remove existing OTP credentials first
-        removeOtpCredentials(user);
+        removeOtpCredentials(user, realm);
         
         // Get OTP credential provider
         OTPCredentialProvider otpCredentialProvider = (OTPCredentialProvider) session.getProvider(
-                CredentialProvider.class, OTPCredentialProvider.PROVIDER_ID);
+                CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
         
         // Create OTP credential model
         CredentialModel credentialModel = otpCredentialProvider.createCredential(
-                auth.getRealm(), user, totpSecret);
+                realm, user, totpSecret);
         
         // Set required action if user doesn't have OTP configured
         if (!user.getRequiredActions().contains(UserModel.RequiredAction.CONFIGURE_TOTP.name())) {
@@ -135,13 +139,13 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
     }
     
-    private void removeOtpCredentials(UserModel user) {
+    private void removeOtpCredentials(UserModel user, RealmModel realm) {
         // Get OTP credential provider
         OTPCredentialProvider otpCredentialProvider = (OTPCredentialProvider) session.getProvider(
-                CredentialProvider.class, OTPCredentialProvider.PROVIDER_ID);
+                CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
         
         // Remove OTP credentials
-        otpCredentialProvider.disableCredentialType(auth.getRealm(), user, OTPCredentialProvider.TYPE);
+        otpCredentialProvider.disableCredentialType(realm, user, OTPCredentialProviderFactory.CREDENTIAL_TYPE);
         
         // Remove required action
         user.removeRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
