@@ -9,12 +9,15 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.OTPCredentialModel;
 import org.keycloak.models.utils.HmacOTP;
+import org.keycloak.services.managers.AppAuthManager;
+import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resources.admin.AdminAuth;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
 import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.HashMap;
@@ -24,9 +27,11 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
 
     private static final Logger LOG = Logger.getLogger(OtpRestResourceProvider.class);
     private final KeycloakSession session;
+    private final AppAuthManager authManager;
 
     public OtpRestResourceProvider(KeycloakSession session) {
         this.session = session;
+        this.authManager = new AppAuthManager();
     }
 
     @Override
@@ -41,11 +46,17 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     
     // Helper method to check admin permissions
     private AdminPermissionEvaluator auth() {
-        AdminAuth adminAuth = session.getContext().getRequestAuthenticationManager().authenticateIdentity();
-        if (adminAuth == null) {
+        // Use AppAuthManager to authenticate - fixed method signature
+        HttpHeaders headers = session.getContext().getRequestHeaders();
+        AuthenticationManager.AuthResult authResult = authManager.authenticateBearerToken(session, session.getContext().getRealm(), headers);
+        if (authResult == null) {
             throw new NotAuthorizedException("Bearer");
         }
-        return AdminPermissions.evaluator(session, session.getContext().getRealm(), adminAuth);
+        
+        RealmModel realm = session.getContext().getRealm();
+        AdminAuth adminAuth = new AdminAuth(realm, authResult.getToken(), authResult.getUser(),
+                authResult.getClient());
+        return AdminPermissions.evaluator(session, realm, adminAuth);
     }
 
     @GET
@@ -178,14 +189,11 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     }
     
     private void removeOtpCredentials(UserModel user, RealmModel realm) {
-        // Get all credentials of OTP type and remove them
+        // Get all credentials of OTP type and remove them using the updated method
         user.credentialManager()
             .getStoredCredentialsByTypeStream(OTPCredentialModel.TYPE)
             .forEach(credential -> 
-                user.credentialManager().removeStoredCredential(credential.getId()));
-        
-        // Remove required action
-        user.removeRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
+                user.credentialManager().removeStoredCredentialById(credential.getId()));
     }
     
     private String generateOtpAuthUrl(RealmModel realm, UserModel user, String totpSecret) {

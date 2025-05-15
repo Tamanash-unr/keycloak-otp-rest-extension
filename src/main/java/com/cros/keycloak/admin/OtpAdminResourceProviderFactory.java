@@ -1,6 +1,5 @@
 package com.cros.keycloak.admin;
 
-import com.cros.keycloak.rest.OtpRestResourceProvider;
 import org.keycloak.Config;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.ClientModel;
@@ -8,8 +7,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
-import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.provider.ProviderEvent;
+import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
 /**
@@ -20,8 +18,8 @@ public class OtpAdminResourceProviderFactory implements RealmResourceProviderFac
     public static final String ID = "admin-otp";
     
     @Override
-    public OtpRestResourceProvider create(KeycloakSession session) {
-        return new OtpRestResourceProvider(session);
+    public RealmResourceProvider create(KeycloakSession session) {
+        return new OtpAdminRealmResourceProvider(session);
     }
 
     @Override
