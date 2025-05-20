@@ -51,6 +51,17 @@
             <version>${keycloak.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+            <version>1.18.36</version>
+            <scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.google.auto.service</groupId>
+			<artifactId>auto-service</artifactId>
+            <version>1.1.1</version>
+		</dependency>
         <!-- Jakarta EE Dependencies -->
         <dependency>
             <groupId>jakarta.ws.rs</groupId>

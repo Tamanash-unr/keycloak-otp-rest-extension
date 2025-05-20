@@ -1,2 +1,1 @@
 com.cros.keycloak.rest.OtpRestResourceProviderFactory
-com.cros.keycloak.admin.OtpAdminRealmResourceProviderFactory
