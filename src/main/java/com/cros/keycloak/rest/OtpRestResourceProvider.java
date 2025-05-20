@@ -27,11 +27,11 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
 
     private static final Logger LOG = Logger.getLogger(OtpRestResourceProvider.class);
     private final KeycloakSession session;
-    private final AppAuthManager authManager;
+    private final AppAuthManager.BearerTokenAuthenticator authManager;
 
     public OtpRestResourceProvider(KeycloakSession session) {
         this.session = session;
-        this.authManager = new AppAuthManager();
+        this.authManager = new AppAuthManager.BearerTokenAuthenticator(session);
     }
 
     @Override
@@ -46,14 +46,16 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     
     // Helper method to check admin permissions
     private AdminPermissionEvaluator auth() {
-        // Use AppAuthManager to authenticate - fixed method signature
         HttpHeaders headers = session.getContext().getRequestHeaders();
-        AuthenticationManager.AuthResult authResult = authManager.authenticateBearerToken(session, session.getContext().getRealm(), headers);
+        RealmModel realm = session.getContext().getRealm();
+        
+        // Use the correct authentication method for Keycloak 26.1.3
+        AuthenticationManager.AuthResult authResult = this.authManager.authenticate();
+        
         if (authResult == null) {
             throw new NotAuthorizedException("Bearer");
         }
         
-        RealmModel realm = session.getContext().getRealm();
         AdminAuth adminAuth = new AdminAuth(realm, authResult.getToken(), authResult.getUser(),
                 authResult.getClient());
         return AdminPermissions.evaluator(session, realm, adminAuth);

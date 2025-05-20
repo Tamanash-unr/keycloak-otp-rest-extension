@@ -34,15 +34,16 @@ public class OtpAdminResourceProvider {
     public OtpAdminResourceProvider(KeycloakSession session) {
         this.session = session;
         
-        // Use AppAuthManager to authenticate - fixed method signature
-        AppAuthManager authManager = new AppAuthManager();
-        HttpHeaders headers = session.getContext().getRequestHeaders();
-        AuthenticationManager.AuthResult authResult = authManager.authenticateBearerToken(session, session.getContext().getRealm(), headers);
+        // Use AppAuthManager to authenticate with the correct method for Keycloak 26.1.3
+        AppAuthManager.BearerTokenAuthenticator authManager = new AppAuthManager.BearerTokenAuthenticator(session);
+        RealmModel realm = session.getContext().getRealm();
+        
+        AuthenticationManager.AuthResult authResult = authManager.authenticate();
+        
         if (authResult == null) {
             throw new NotAuthorizedException("Bearer");
         }
         
-        RealmModel realm = session.getContext().getRealm();
         AdminAuth auth = new AdminAuth(realm, authResult.getToken(), authResult.getUser(),
                 authResult.getClient());
         this.permissions = AdminPermissions.evaluator(session, realm, auth);
