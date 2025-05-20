@@ -7,7 +7,7 @@ import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
 /**
- * Factory for the OTP REST resource provider (legacy version - keeping for backward compatibility)
+ * Factory for the OTP REST resource provider
  */
 public class OtpRestResourceProviderFactory implements RealmResourceProviderFactory {
 
