@@ -2,23 +2,21 @@ package com.cros.keycloak.admin;
 
 import org.jboss.logging.Logger;
 import lombok.RequiredArgsConstructor;
+
 import org.keycloak.credential.CredentialProvider;
 import org.keycloak.credential.OTPCredentialProvider;
 import org.keycloak.credential.OTPCredentialProviderFactory;
+import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.OTPCredentialModel;
+import org.keycloak.models.utils.Base32;
 import org.keycloak.models.utils.HmacOTP;
-import org.keycloak.services.managers.AppAuthManager;
-import org.keycloak.services.managers.AuthenticationManager;
-import org.keycloak.services.resources.admin.AdminAuth;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
 import org.keycloak.services.resources.admin.permissions.UserPermissionEvaluator;
-import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.HashMap;
@@ -52,10 +50,14 @@ public class OtpAdminResource {
 
         // auth.users().requireManage(user);
 
-        String totpSecret = generateTotpSecret();
+        Map<String, String> totpData = generateTotpSecret();
+        // Generate OTP secret
+        String totpSecret = totpData.get("rawSecret");
+        String base32Secret = totpData.get("base32Secret");
+
         configureOtpForUser(user, totpSecret, realm);
 
-        String otpAuthUrl = generateOtpAuthUrl(realm, user, totpSecret);
+        String otpAuthUrl = generateOtpAuthUrl(realm, user, base32Secret);
 
         Map<String, String> result = new HashMap<>();
         result.put("userId", user.getId());
@@ -86,9 +88,15 @@ public class OtpAdminResource {
         // Check if admin has permission to manage this user
         // auth.users().requireManage(user);
         
-        // Get provided OTP secret or generate one if not provided
+        // Get provided OTP secret
         String totpSecret = data.containsKey("totpSecret") ? 
-                data.get("totpSecret") : generateTotpSecret();
+                data.get("totpSecret") : "";
+
+        // Get generate one if not provided
+        if(!data.containsKey("totpSecret")){
+            Map<String, String> totpData = generateTotpSecret();
+            totpSecret = totpData.get("rawSecret");
+        }
         
         // Configure OTP for user
         configureOtpForUser(user, totpSecret, realm);
@@ -131,9 +139,29 @@ public class OtpAdminResource {
         return Response.ok(result).build();
     }
     
-    private String generateTotpSecret() {
-        // Generate a random secret for TOTP
-        return HmacOTP.generateSecret(20);
+    private Map<String, String> generateTotpSecret() {
+        // Generate Random 20 bytes String
+        String rawSecret = HmacOTP.generateSecret(20);
+
+        // Generate 20 raw bytes
+        byte[] rawBytes = rawSecret.getBytes();
+        
+        // Generate Base32-encoded secret for the OTP URL
+        String base32Secret = Base32.encode(rawBytes)
+                .toUpperCase()
+                .replace("=", ""); // Remove padding
+
+        
+        // LOG.infof("TOTP Secret: %s", rawSecret);
+        // LOG.infof("Raw Bytes : %s", rawBytes);
+        // LOG.infof("Base32 Secret: %s", base32Secret);
+        
+        // Return both secrets in a map
+        Map<String, String> secrets = new HashMap<>();
+        secrets.put("rawSecret", rawSecret);
+        secrets.put("base32Secret", base32Secret);
+        
+        return secrets;
     }
     
     private void configureOtpForUser(UserModel user, String totpSecret, RealmModel realm) {
@@ -168,12 +196,26 @@ public class OtpAdminResource {
     
     private String generateOtpAuthUrl(RealmModel realm, UserModel user, String totpSecret) {
         // Create OTP auth URL in standard format
-        // otpauth://totp/{issuer}:{account}?secret={secret}&issuer={issuer}
+        // otpauth://totp/{issuer}:{account}?secret={secret}&issuer={issuer}&digits={digits}&algorithm={algorithm}&period={period}
+        // Retrieve OTP policy from the realm
+        OTPPolicy policy = realm.getOTPPolicy();
+        String algorithm = policy.getAlgorithm().replace("Hmac", ""); // Convert HmacSHA1 to SHA1
+        int digits = policy.getDigits();
+        int period = policy.getPeriod();
+
         String issuer = realm.getName();
         String account = user.getUsername();
         
-        return String.format("otpauth://totp/%s:%s?secret=%s&issuer=%s",
-                urlEncode(issuer), urlEncode(account), totpSecret, urlEncode(issuer));
+        return String.format(
+            "otpauth://totp/%s:%s?secret=%s&issuer=%s&digits=%d&algorithm=%s&period=%d",
+            urlEncode(issuer), 
+            urlEncode(account), 
+            totpSecret, 
+            urlEncode(issuer),
+            digits,
+            algorithm,
+            period
+        );
     }
     
     private String urlEncode(String value) {
