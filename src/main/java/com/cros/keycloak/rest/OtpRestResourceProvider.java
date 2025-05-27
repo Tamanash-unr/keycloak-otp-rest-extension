@@ -54,13 +54,13 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     }
 
     /**
-     * New endpoint for detailed OTP authentication with specific error messages
+     * New endpoint for detailed OTP auth validation with specific error messages
      */
     @POST
-    @Path("authenticate")
+    @Path("validate")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
-    public Response authenticateWithOtp(Map<String, String> credentials) {
+    public Response validateWithOtp(Map<String, String> credentials) {
         RealmModel realm = session.getContext().getRealm();
         
         String username = credentials.get("username");
@@ -135,7 +135,7 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
             
             // Password is valid and no OTP required
             result.put("success", true);
-            result.put("message", "Authentication successful");
+            result.put("message", "Validation successful");
             result.put("userId", user.getId());
             result.put("username", user.getUsername());
             result.put("otpRequired", false);
@@ -152,26 +152,10 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         }
         
         // Verify OTP
-        // OTPCredentialProvider otpProvider = (OTPCredentialProvider) session.getProvider(
-        //         CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
-
-        // Create OTP credential input
-        // CredentialInput otpInput = UserCredentialModel.totp(otpCode);
-        // LOG.infof("OTP Credential ID: %s", otpInput.getCredentialId());
-        // LOG.infof("OTP Credential Data: %s", otpInput);
-
-        // if (!otpProvider.isValid(realm, user, otpInput)) {
-        //     result.put("success", false);
-        //     result.put("error", "INVALID_OTP");
-        //     result.put("message", "Invalid OTP code");
-        //     result.put("otpRequired", true);
-        //     return Response.status(Response.Status.UNAUTHORIZED).entity(result).build();
-        // }
-
         CredentialModel otpData = user.credentialManager()
                 .getStoredCredentialsByTypeStream(OTPCredentialModel.TYPE).findFirst().get();
         OTPCredentialModel otpCredentialModel = OTPCredentialModel.createFromCredentialModel(otpData);
-        LOG.infof("Credential Data Secret : %s", otpCredentialModel.getOTPSecretData().getValue());
+        // LOG.infof("Credential Data Secret : %s", otpCredentialModel.getOTPSecretData().getValue());
         
         if (!verifyOtpCode(otpCredentialModel.getOTPSecretData().getValue(), otpCode, realm)) {
             result.put("success", false);
@@ -183,7 +167,7 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         
         // Both password and OTP are valid
         result.put("success", true);
-        result.put("message", "Authentication successful");
+        result.put("message", "Validation successful");
         result.put("userId", user.getId());
         result.put("username", user.getUsername());
         result.put("email", user.getEmail());
@@ -381,10 +365,10 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
         
         // Set required action if user doesn't have OTP configured
         // Fixed: Use UserModel's addRequiredAction directly instead of checking getRequiredActions
-        if (!user.getRequiredActionsStream().anyMatch(action -> 
-                action.equals(UserModel.RequiredAction.CONFIGURE_TOTP.name()))) {
-            user.addRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
-        }
+        // if (!user.getRequiredActionsStream().anyMatch(action -> 
+        //         action.equals(UserModel.RequiredAction.CONFIGURE_TOTP.name()))) {
+        //     user.addRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
+        // }
     }
     
     private void removeOtpCredentials(UserModel user, RealmModel realm) {
@@ -459,19 +443,19 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
     private static class PendingOtpConfig {
         private final String userId;
         private final String rawSecret;
-        private final String base32Secret;
+        // private final String base32Secret;
         private final long timestamp;
         
         public PendingOtpConfig(String userId, String rawSecret, String base32Secret, long timestamp) {
             this.userId = userId;
             this.rawSecret = rawSecret;
-            this.base32Secret = base32Secret;
+            // this.base32Secret = base32Secret;
             this.timestamp = timestamp;
         }
         
         public String getUserId() { return userId; }
         public String getRawSecret() { return rawSecret; }
-        public String getBase32Secret() { return base32Secret; }
+        // public String getBase32Secret() { return base32Secret; }
         public long getTimestamp() { return timestamp; }
     }
 }
