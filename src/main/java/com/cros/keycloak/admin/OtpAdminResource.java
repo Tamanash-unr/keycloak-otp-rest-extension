@@ -2,12 +2,15 @@ package com.cros.keycloak.admin;
 
 import org.jboss.logging.Logger;
 import lombok.RequiredArgsConstructor;
+
 import org.keycloak.credential.CredentialProvider;
 import org.keycloak.credential.OTPCredentialProvider;
 import org.keycloak.credential.OTPCredentialProviderFactory;
+import org.keycloak.credential.CredentialModel;
 import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.SingleUseObjectProvider;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.OTPCredentialModel;
 import org.keycloak.models.utils.Base32;
@@ -127,7 +130,8 @@ public class OtpAdminResource {
         }
         
         // Verify the OTP code
-        if (!verifyOtpCode(pendingConfig.getRawSecret(), otpCode, realm)) {
+        // if (!verifyOtpCode(pendingConfig.getRawSecret(), otpCode, realm)) {
+        if (!verifyOtpCode(user, otpCode, realm, pendingConfig.getRawSecret())) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Invalid OTP code");
             return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
@@ -305,17 +309,49 @@ public class OtpAdminResource {
         }
     }
 
-    private boolean verifyOtpCode(String secret, String code, RealmModel realm) {
+    private boolean verifyOtpCode(UserModel user, String code, RealmModel realm, String secret) {        
         try {
+            boolean isConfigured = user.credentialManager()
+                .getStoredCredentialsByTypeStream(OTPCredentialModel.TYPE).findFirst().isPresent();
+            
+            if(isConfigured){
+                CredentialModel otpData = user.credentialManager().getStoredCredentialsByTypeStream(OTPCredentialModel.TYPE).findFirst().get();
+
+                SingleUseObjectProvider singleUseStore = this.session.singleUseObjects();
+                String var10000 = otpData.getId();
+                String searchKey = var10000 + "." + code;
+
+                if(singleUseStore.contains(searchKey)) {
+                    LOG.infof("Store contains key: %s", searchKey);
+                    return false;
+                }
+                LOG.infof("Store does not contain key: %s", searchKey);
+            }           
+
             OTPPolicy policy = realm.getOTPPolicy();
-            TimeBasedOTP totp = new TimeBasedOTP(
-                policy.getAlgorithm(),
-                policy.getDigits(),
-                policy.getPeriod(),
+            TimeBasedOTP validator = new TimeBasedOTP(
+                policy.getAlgorithm(), 
+                policy.getDigits(), 
+                policy.getPeriod(), 
                 policy.getLookAheadWindow()
             );
+
+            return validator.validateTOTP(code, secret.getBytes());             
             
-            return totp.validateTOTP(code, secret.getBytes());
+            /* 
+            // Validate OTP - Consumes OTP so it cannot be used again
+            OTPCredentialProvider otpProvider = (OTPCredentialProvider) session.getProvider(
+            CredentialProvider.class, OTPCredentialProviderFactory.PROVIDER_ID);
+
+            CredentialModel otpData = user.credentialManager()
+                .getStoredCredentialsByTypeStream(OTPCredentialModel.TYPE).findFirst().get();
+
+            OTPCredentialModel otpCredentialModel = OTPCredentialModel.createFromCredentialModel(otpData);
+            CredentialInput otpInput = new UserCredentialModel(otpCredentialModel.getId(), OTPCredentialModel.TOTP, code);
+            LOG.infof("ID found: %s", otpInput.getCredentialId());
+
+            return otpProvider.isValid(realm, user, otpInput); 
+            */
         } catch (Exception e) {
             LOG.error("Error verifying OTP code", e);
             return false;
