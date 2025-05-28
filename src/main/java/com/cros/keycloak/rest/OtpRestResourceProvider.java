@@ -426,10 +426,10 @@ public class OtpRestResourceProvider implements RealmResourceProvider {
                 String searchKey = var10000 + "." + code;
 
                 if(singleUseStore.contains(searchKey)) {
-                    LOG.infof("Store contains key: %s", searchKey);
+                    // LOG.infof("Store contains key: %s", searchKey);
                     return false;
                 }
-                LOG.infof("Store does not contain key: %s", searchKey);
+                // LOG.infof("Store does not contain key: %s", searchKey);
             }           
 
             OTPPolicy policy = realm.getOTPPolicy();
